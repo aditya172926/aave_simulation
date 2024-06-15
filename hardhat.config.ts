@@ -7,7 +7,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         enabled: true,
-        url: "https://eth-mainnet.g.alchemy.com/v2/4CzLEOliFHrLelLtaAbCRKt1uDipuuu2",
+        url: process.env.ALCHEMY_RPC_MAINNET,
         blockNumber: 18589542
       },
       chainId: 1
