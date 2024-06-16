@@ -1,11 +1,13 @@
 import { ethers } from "hardhat";
-import { poolAbi } from "./abi/pool";
-import { poolAddressProviderAbi } from "./abi/poolAddressProvider";
+import poolAbi from "./abi/pool.json";
+import poolAddressProviderAbi from "./abi/poolAddressProvider.json";
 import routerArtifact from '@uniswap/v2-periphery/build/UniswapV2Router02.json';
 import erc20Abi from './abi/erc20.json';
 import wbtcAbi from './abi/wbtc.json';
 import wethAbi from './abi/weth.json';
 import aaveOracleAbi from './abi/aaveOracle.json';
+import aclManagerAbi from './abi/aclManagerAbi.json';
+import { impersonateAccount, stopImpersonatingAccount } from "@nomicfoundation/hardhat-network-helpers";
 
 
 const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
@@ -26,15 +28,39 @@ const configSetup = async () => {
         const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
         const signer = await provider.getSigner(0);
 
-        
+
         const poolAddressProviderContract = new ethers.Contract(poolAddressProvider, poolAddressProviderAbi, signer);
-        const tx1 = await poolAddressProviderContract.getPool();
-        const tx2 = await poolAddressProviderContract.getACLAdmin();
-        const tx3 = await poolAddressProviderContract.getACLManager();
-        const tx4 = await poolAddressProviderContract.getPriceOracle();
-        console.table({'Pool': tx1, 'DEFAULT_ADMIN_ROLE': tx2, 'ACLManager': tx3, 'PriceOracle': tx4});
+
+        const poolAddress = await poolAddressProviderContract.getPool();
+        const admin = await poolAddressProviderContract.getACLAdmin();
+        const aclManagerAddress = await poolAddressProviderContract.getACLManager();
+        const oracleAddress = await poolAddressProviderContract.getPriceOracle();
+        console.table({ 'Pool': poolAddress, 'DEFAULT_ADMIN_ROLE': admin, 'ACLManager': aclManagerAddress, 'PriceOracle': oracleAddress });
 
         // fetch the users which borrowed a lot wbtc
+
+        const oracleContract = new ethers.Contract(oracleAddress, aaveOracleAbi, signer);
+        const aclManagerContract = new ethers.Contract(aclManagerAddress, aclManagerAbi, signer);
+
+        const currentWBTCPrice = await oracleContract.getAssetPrice(WBTC_ADDRESS);
+        console.log("WBTC price in USD = ", currentWBTCPrice);
+
+        const WBTCPriceSource = await oracleContract.getSourceOfAsset(WBTC_ADDRESS);
+        console.log("Price source ", WBTCPriceSource);
+
+        const hasAccess = await aclManagerContract.isPoolAdmin(admin);
+
+        if (hasAccess === true) {
+            await impersonateAccount(admin);
+            const adminSigner = await ethers.getSigner(admin);
+            console.log(adminSigner);
+
+            await stopImpersonatingAccount(admin);
+        } else {
+            throw new Error("Cannot impersonate AAVE ACL Admin. No permissions");
+        }
+
+
 
 
 
