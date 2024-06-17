@@ -26,7 +26,7 @@ let accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: st
 const configSetup = async () => {
     try {
         const [signer] = await ethers.getSigners();
-        console.log("Current block number ",await signer.provider.getBlockNumber());
+        console.log("Current block number ", await signer.provider.getBlockNumber());
 
 
         const poolAddressProviderContract = new ethers.Contract(poolAddressProvider, poolAddressProviderAbi, signer);
@@ -114,74 +114,92 @@ const getUsers = async (poolContractAddress: string) => {
     Get the top 20 user address filtered by borrow amount
     */
 
-    const logs = await network.provider.send(
+    const poolContractInterface = new ethers.Interface(poolAbi);
+    const borrowEvent = poolContractInterface.getEvent("Borrow");
+
+    const borrowLogs = await network.provider.send(
         "eth_getLogs",
         [
             {
-                "fromBlock": "0x11BA702",
+                "fromBlock": "0x11B7FF2",
                 "toBlock": "0x11BA766",
-                "address": poolContractAddress
+                "address": poolContractAddress,
+                "topics": [
+                    borrowEvent?.topicHash, // borrow event
+                    ethers.toBeHex(WBTC_ADDRESS, 32) // wbtc address
+                ]
             }
         ]
     )
-    console.log("Logs ", logs);
+
+    let topUserAccounts: any = {};
+
+    for (let log of borrowLogs) {
+        const decodedLog = poolContractInterface.parseLog(log);
+        topUserAccounts[decodedLog?.args[1]] = {
+            wbtcBorrowed: topUserAccounts[decodedLog?.args[1]] ?
+                topUserAccounts[decodedLog?.args[1]].wbtcBorrowed + decodedLog?.args[3]
+                : decodedLog?.args[3]
+        };
+    }
+    console.table(topUserAccounts);
 }
 
-const swapTokens = async () => {
-    const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
+// const swapTokens = async () => {
+//     const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
 
 
-    const logBalances = async (accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: string }]) => {
-        console.table(accountBalance);
-    }
+//     const logBalances = async (accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: string }]) => {
+//         console.table(accountBalance);
+//     }
 
-    for (let account = 0; account < 1; account++) {
+//     for (let account = 0; account < 1; account++) {
 
-        const signer = await provider.getSigner(account);
-        console.log(`\nConfiguring User ${signer.address}`);
+//         const signer = await provider.getSigner(account);
+//         console.log(`\nConfiguring User ${signer.address}`);
 
-        const router = new ethers.Contract(ROUTER_ADDRESS, routerArtifact.abi, signer);
-        const weth = new ethers.Contract(WETH_ADDRESS, wethAbi, signer);
-        const wbtc = new ethers.Contract(WBTC_ADDRESS, wbtcAbi, signer);
+//         const router = new ethers.Contract(ROUTER_ADDRESS, routerArtifact.abi, signer);
+//         const weth = new ethers.Contract(WETH_ADDRESS, wethAbi, signer);
+//         const wbtc = new ethers.Contract(WBTC_ADDRESS, wbtcAbi, signer);
 
-        const ethBalance = await provider.getBalance(signer.address);
-        const wbtcBalance = await wbtc.balanceOf(signer.address);
-        if (wbtcBalance == 0) {
-            // converting eth to weth
-            await signer.sendTransaction({
-                to: WETH_ADDRESS,
-                value: ethers.parseUnits('1000', 18)
-            });
+//         const ethBalance = await provider.getBalance(signer.address);
+//         const wbtcBalance = await wbtc.balanceOf(signer.address);
+//         if (wbtcBalance == 0) {
+//             // converting eth to weth
+//             await signer.sendTransaction({
+//                 to: WETH_ADDRESS,
+//                 value: ethers.parseUnits('1000', 18)
+//             });
 
-            const amountIn = ethers.parseUnits('1000', 18)
-            const tx1 = await weth.approve(router.target, amountIn);
-            tx1.wait();
+//             const amountIn = ethers.parseUnits('1000', 18)
+//             const tx1 = await weth.approve(router.target, amountIn);
+//             tx1.wait();
 
-            // converting weth to wbtc
-            const tx2 = await router.swapExactTokensForTokens(
-                amountIn,
-                0,
-                [WETH_ADDRESS, WBTC_ADDRESS],
-                signer.address,
-                Math.floor(Date.now() / 1000) + (60 * 10),
-                {
-                    gasLimit: 1000000,
-                }
-            )
-            await tx2.wait()
-        }
+//             // converting weth to wbtc
+//             const tx2 = await router.swapExactTokensForTokens(
+//                 amountIn,
+//                 0,
+//                 [WETH_ADDRESS, WBTC_ADDRESS],
+//                 signer.address,
+//                 Math.floor(Date.now() / 1000) + (60 * 10),
+//                 {
+//                     gasLimit: 1000000,
+//                 }
+//             )
+//             await tx2.wait()
+//         }
 
-        accountBalance.push({
-            user: signer.address,
-            userETHBalance: ethers.formatUnits(ethBalance, 18),
-            userWBTCBalance: ethers.formatUnits(wbtcBalance, 8),
-        });
-    }
+//         accountBalance.push({
+//             user: signer.address,
+//             userETHBalance: ethers.formatUnits(ethBalance, 18),
+//             userWBTCBalance: ethers.formatUnits(wbtcBalance, 8),
+//         });
+//     }
 
-    logBalances(accountBalance);
+//     logBalances(accountBalance);
 
-    configSetup();
-}
+//     configSetup();
+// }
 
 // swapTokens();
 configSetup();
