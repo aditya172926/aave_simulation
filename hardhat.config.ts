@@ -8,9 +8,10 @@ const config: HardhatUserConfig = {
       forking: {
         enabled: true,
         url: process.env.ALCHEMY_RPC_MAINNET,
-        blockNumber: 18589542
+        blockNumber: 18589542,
       },
-      chainId: 1
+      gas: 2100000,
+      chainId: 1,
     }
   }
 };
