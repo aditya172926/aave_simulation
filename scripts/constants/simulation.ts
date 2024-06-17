@@ -1,0 +1,1 @@
+export const AAVE_SUBGRAPH_URL = 'https://api.thegraph.com/subgraphs/name/aave/protocol-v3';
