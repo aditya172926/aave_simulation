@@ -24,8 +24,7 @@ let accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: st
 }];
 
 const configSetup = async () => {
-    // try {
-        // const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
+    try {
         const [signer] = await ethers.getSigners();
         console.log("Current block number ",await signer.provider.getBlockNumber());
 
@@ -99,9 +98,9 @@ const configSetup = async () => {
         // const userData = await poolContract.getUserAccountData(signer.address);
         // console.log("User Data ", userData);
 
-    // } catch (error) {
-    //     console.log("error ", error);
-    // }
+    } catch (error) {
+        console.log("error ", error);
+    }
 
 
 }
