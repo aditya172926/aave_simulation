@@ -16,7 +16,7 @@ const connectDb = async () => {
     await client.connect();
     const dbo = await client.db("aave_simulation");
     await dbo.command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log("Pinged your db. You successfully connected to MongoDB!");
     return dbo.collection("simulation_data");
 }
 
@@ -24,6 +24,7 @@ export const upload = async (data: any) => {
     try {
         const dbo = await connectDb();
         const result = await dbo.insertMany([data]);
+        console.log("Inserted simulation data successfully");
         return result;
     } catch (error) {
         console.error("Error in connecting to Db");

@@ -60,6 +60,8 @@ const runSimulation = async (runTest: boolean = false) => {
     try {
         const [signer] = await ethers.getSigners();
         console.log("Current block number ", await signer.provider.getBlockNumber());
+        const network = await signer.provider.getNetwork();
+        console.log(`Current network chainId = ${network.chainId}`);
 
         const poolAddressProviderContract = new ethers.Contract(POOL_ADDRESS_PROVIDER_ADDRESS, poolAddressProviderAbi, signer);
 
@@ -112,7 +114,7 @@ const getUsers = async (poolContract: any) => {
         query: reserveQuery(),
         variables: { underlyingAssetAddress: WBTC_ADDRESS }
     });
-    console.log(res.data.data.reserves[0].id);
+    console.log("Reserve id = ", res.data.data.reserves[0].id);
     const reserveId: string = res.data.data.reserves[0].id;
 
     const res2 = await axios.post(AAVE_SUBGRAPH_URL, {
