@@ -1,4 +1,4 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 const config: HardhatUserConfig = {
@@ -7,7 +7,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         enabled: true,
-        url: process.env.ALCHEMY_RPC_MAINNET,
+        url: vars.get('ALCHEMY_RPC_MAINNET'),
         blockNumber: 18589542,
       },
       gas: 2100000,

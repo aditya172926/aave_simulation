@@ -1,7 +1,12 @@
 import { impersonateAccount, stopImpersonatingAccount } from "@nomicfoundation/hardhat-network-helpers";
 import axios from 'axios';
 import { ethers } from "hardhat";
-import { AAVE_SUBGRAPH_URL, POOL_ADDRESS_PROVIDER_ADDRESS, WBTC_ADDRESS, uiPoolDataProviderV3Address } from './constants/simulation';
+import {
+    AAVE_SUBGRAPH_URL,
+    POOL_ADDRESS_PROVIDER_ADDRESS,
+    WBTC_ADDRESS,
+    uiPoolDataProviderV3Address
+} from './constants/simulation';
 
 // graph queries
 import { borrowQuery } from "./graph-query/borrow";
@@ -14,6 +19,8 @@ import aaveOracleAbi from './abi/aaveOracle.json';
 import aclManagerAbi from './abi/aclManagerAbi.json';
 import poolAbi from "./abi/pool.json";
 import uiPoolDataProviderV3Abi from './abi/uiPoolDataProviderV3Abi.json';
+import { upload } from "./uploadToDb";
+import { vars } from "hardhat/config";
 
 const deployNewPriceFeedContract = async (
     WBTCPriceSource: string,
@@ -94,6 +101,7 @@ const runSimulation = async (runTest: boolean = false) => {
         //     poolAddressProviderContract, 
         //     users
         // );
+        return users;
     } catch (error) {
         console.error("error ", error);
     }
@@ -149,9 +157,21 @@ const checkUserReservePool = async (
 const main = async () => {
     console.clear();
     console.log("Running Simulation at actual price of WBTC\n");
-    await runSimulation();
+    const userDetails = await runSimulation();
     console.log("\n----------------------------------------------------------------\n");
     console.log("Running Simulation at manipulated price of WBTC\n");
-    await runSimulation(true);
+    const userDetailsAfterTest = await runSimulation(true);
+
+    const data = {
+        beforeTest: userDetails,
+        afterTest: userDetailsAfterTest,
+        timestamp: Date.now()
+    }
+    if (vars.has('MONGODB_URI')) {
+        await upload(data);
+    } else {
+        console.log('No mongodb uri found. Add MONGODB_URI envrionment variable to store the output');
+    }
+    process.exit(1);
 }
 main();
