@@ -1,34 +1,23 @@
-import { ethers, network } from "hardhat";
-import poolAbi from "./abi/pool.json";
+import { impersonateAccount, stopImpersonatingAccount } from "@nomicfoundation/hardhat-network-helpers";
+import axios from 'axios';
+import { ethers } from "hardhat";
+import { AAVE_SUBGRAPH_URL, POOL_ADDRESS_PROVIDER_ADDRESS, WBTC_ADDRESS, uiPoolDataProviderV3Address } from './constants/simulation';
+
+// graph queries
+import { borrowQuery } from "./graph-query/borrow";
+import { reserveQuery } from "./graph-query/reserve";
+
+// Abi
 import poolAddressProviderAbi from "./abi/poolAddressProvider.json";
-import routerArtifact from '@uniswap/v2-periphery/build/UniswapV2Router02.json';
-import erc20Abi from './abi/erc20.json';
-import wbtcAbi from './abi/wbtc.json';
-import wethAbi from './abi/weth.json';
+import poolDataProviderAbi from './abi/poolDataProviderAbi.json';
 import aaveOracleAbi from './abi/aaveOracle.json';
 import aclManagerAbi from './abi/aclManagerAbi.json';
-import poolDataProviderAbi from './abi/poolDataProviderAbi.json';
-import { impersonateAccount, stopImpersonatingAccount } from "@nomicfoundation/hardhat-network-helpers";
-import { reserveQuery } from "./graph-query/reserve";
-import { AAVE_SUBGRAPH_URL } from './constants/simulation';
-import axios from 'axios';
-import { borrowQuery } from "./graph-query/borrow";
-import { HardhatEthersHelpers } from "hardhat/types";
+import poolAbi from "./abi/pool.json";
+import uiPoolDataProviderV3Abi from './abi/uiPoolDataProviderV3Abi.json';
 
-
-const WBTC_ADDRESS = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
-const pool = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
-const poolAddressProvider = "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e";
-
-let accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: string }] = [{
-    user: '',
-    userETHBalance: '',
-    userWBTCBalance: ''
-}];
-
-const deployNewPriceFeedContract = async(
-    WBTCPriceSource: string, 
-    admin: string, 
+const deployNewPriceFeedContract = async (
+    WBTCPriceSource: string,
+    admin: string,
     aclManagerContract: any,
     signer: any,
     oracleAddress: string) => {
@@ -48,7 +37,6 @@ const deployNewPriceFeedContract = async(
             value: ethers.parseEther("5")
         });
         await fundAdmin.wait();
-        console.log("Admin balance = ", await adminSigner.provider.getBalance(adminSigner.address));
         const adminOracleContract = new ethers.Contract(oracleAddress, aaveOracleAbi, adminSigner);
         const newPriceSourceTxn = await adminOracleContract.setAssetSources(
             [WBTC_ADDRESS],
@@ -61,12 +49,12 @@ const deployNewPriceFeedContract = async(
     }
 }
 
-const configSetup = async () => {
+const runSimulation = async (runTest: boolean = false) => {
     try {
         const [signer] = await ethers.getSigners();
         console.log("Current block number ", await signer.provider.getBlockNumber());
 
-        const poolAddressProviderContract = new ethers.Contract(poolAddressProvider, poolAddressProviderAbi, signer);
+        const poolAddressProviderContract = new ethers.Contract(POOL_ADDRESS_PROVIDER_ADDRESS, poolAddressProviderAbi, signer);
 
         const poolAddress = await poolAddressProviderContract.getPool();
         const admin = await poolAddressProviderContract.getACLAdmin();
@@ -78,7 +66,8 @@ const configSetup = async () => {
             'DEFAULT_ADMIN_ROLE': admin,
             'ACLManager': aclManagerAddress,
             'PriceOracle': oracleAddress,
-            'PoolDataProvider': poolDataProviderAddress
+            'PoolDataProvider': poolDataProviderAddress,
+            'UiPoolDataProviderV3Address': uiPoolDataProviderV3Address
         });
 
         const poolContract = new ethers.Contract(poolAddress, poolAbi, signer);
@@ -93,22 +82,24 @@ const configSetup = async () => {
         const WBTCPriceSource: string = await oracleContract.getSourceOfAsset(WBTC_ADDRESS);
         console.log("Price source ", WBTCPriceSource);
 
-        await deployNewPriceFeedContract(WBTCPriceSource, admin, aclManagerContract, signer, oracleAddress);
-        const updatedWbtcPrice = await oracleContract.getAssetPrice(WBTC_ADDRESS);
-        console.log(updatedWbtcPrice);
-        await getUsers(poolContract, poolDataProviderContract);
+        if (runTest) {
+            await deployNewPriceFeedContract(WBTCPriceSource, admin, aclManagerContract, signer, oracleAddress);
+            const updatedWbtcPrice = await oracleContract.getAssetPrice(WBTC_ADDRESS);
+            console.log("New Price of WBTC", updatedWbtcPrice);
+        }
+        const users = await getUsers(poolContract);
+        // await checkUserReservePool(
+        //     signer, 
+        //     uiPoolDataProviderV3Address, 
+        //     poolAddressProviderContract, 
+        //     users
+        // );
     } catch (error) {
-        console.log("error ", error);
+        console.error("error ", error);
     }
 }
 
-const getUsers = async (poolContract: any, poolDataProviderContract: any) => {
-    /*
-    Read borrow event of Pool contract
-    Filter the events by asset WBTC_ADDRESS
-    Get the top 20 user address filtered by borrow amount
-    */
-
+const getUsers = async (poolContract: any) => {
     const res = await axios.post(AAVE_SUBGRAPH_URL, {
         query: reserveQuery(),
         variables: { underlyingAssetAddress: WBTC_ADDRESS }
@@ -138,13 +129,29 @@ const getUsers = async (poolContract: any, poolDataProviderContract: any) => {
         }
     }
     console.table(userAccounts);
-
-    // liquidate all accounts which are true
-
-    
-
-    //getReserveTokensAddresses
-    //getUserReserveData
-
+    return userAccounts;
 }
-configSetup();
+
+const checkUserReservePool = async (
+    signer: any,
+    uiPoolDataProviderV3Address: string,
+    poolAddressProviderContract: any,
+    users: any
+) => {
+    const uiPoolDataContract = new ethers.Contract(uiPoolDataProviderV3Address, uiPoolDataProviderV3Abi, signer);
+    for (let user of users) {
+        const userReserveData = await uiPoolDataContract.getUserReservesData(poolAddressProviderContract, user);
+        console.log("userReserveData ", userReserveData);
+        console.log("-----------------------------------------------------------");
+    }
+}
+
+const main = async () => {
+    console.clear();
+    console.log("Running Simulation at actual price of WBTC\n");
+    await runSimulation();
+    console.log("\n----------------------------------------------------------------\n");
+    console.log("Running Simulation at manipulated price of WBTC\n");
+    await runSimulation(true);
+}
+main();
