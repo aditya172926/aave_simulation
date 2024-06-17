@@ -25,8 +25,8 @@ let accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: st
 
 const configSetup = async () => {
     try {
-        const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
-        const signer = await provider.getSigner(0);
+        // const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
+        const [signer] = await ethers.getSigners();
 
 
         const poolAddressProviderContract = new ethers.Contract(poolAddressProvider, poolAddressProviderAbi, signer);
@@ -36,6 +36,8 @@ const configSetup = async () => {
         const aclManagerAddress = await poolAddressProviderContract.getACLManager();
         const oracleAddress = await poolAddressProviderContract.getPriceOracle();
         console.table({ 'Pool': poolAddress, 'DEFAULT_ADMIN_ROLE': admin, 'ACLManager': aclManagerAddress, 'PriceOracle': oracleAddress });
+
+        getUsers(poolAddress);
 
         // fetch the users which borrowed a lot wbtc
 
@@ -87,14 +89,24 @@ const configSetup = async () => {
 
 }
 
-const getUsers = async () => {
+const getUsers = async (poolContractAddress: string) => {
     /*
     Read borrow event of Pool contract
     Filter the events by asset WBTC_ADDRESS
     Get the top 20 user address filtered by borrow amount
     */
 
-    const logs = await network.provider.
+    const logs = await network.provider.send(
+        "eth_getLogs",
+        [
+            {
+                "fromBlock": "0x11BA702",
+                "toBlock": "0x11BA766",
+                "address": poolContractAddress
+            }
+        ]
+    )
+    console.log("Logs ", logs);
 }
 
 const swapTokens = async () => {
