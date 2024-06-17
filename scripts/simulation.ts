@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import poolAbi from "./abi/pool.json";
 import poolAddressProviderAbi from "./abi/poolAddressProvider.json";
 import routerArtifact from '@uniswap/v2-periphery/build/UniswapV2Router02.json';
@@ -85,6 +85,16 @@ const configSetup = async () => {
     }
 
 
+}
+
+const getUsers = async () => {
+    /*
+    Read borrow event of Pool contract
+    Filter the events by asset WBTC_ADDRESS
+    Get the top 20 user address filtered by borrow amount
+    */
+
+    const logs = await network.provider.
 }
 
 const swapTokens = async () => {
