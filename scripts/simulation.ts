@@ -25,8 +25,8 @@ let accountBalance: [{ user: string, userETHBalance: string, userWBTCBalance: st
 
 const configSetup = async () => {
     try {
-        // const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545/');
         const [signer] = await ethers.getSigners();
+        console.log("Current block number ",await signer.provider.getBlockNumber());
 
 
         const poolAddressProviderContract = new ethers.Contract(poolAddressProvider, poolAddressProviderAbi, signer);
@@ -50,18 +50,36 @@ const configSetup = async () => {
         const WBTCPriceSource = await oracleContract.getSourceOfAsset(WBTC_ADDRESS);
         console.log("Price source ", WBTCPriceSource);
 
+        const newPriceFeedFactory = await ethers.getContractFactory("WBTCFeedOverride");
+        const newPriceFeedContract = await newPriceFeedFactory.deploy(WBTCPriceSource);
+        const newPriceFeedContractAddress = await newPriceFeedContract.getAddress();
+
+        console.log("New pricefeed contract deployed at ", newPriceFeedContractAddress);
+
         const hasAccess = await aclManagerContract.isPoolAdmin(admin);
 
         if (hasAccess === true) {
             await impersonateAccount(admin);
             const adminSigner = await ethers.getSigner(admin);
-            console.log(adminSigner);
-
+            const fundAdmin = await signer.sendTransaction({
+                to: adminSigner.address,
+                value: ethers.parseEther("5")
+            });
+            await fundAdmin.wait();
+            console.log("Admin balance = ", await adminSigner.provider.getBalance(adminSigner.address));
+            const adminOracleContract = new ethers.Contract(oracleAddress, aaveOracleAbi, adminSigner);
+            const newPriceSourceTxn = await adminOracleContract.setAssetSources(
+                [WBTC_ADDRESS],
+                [newPriceFeedContractAddress]
+            );
+            await newPriceSourceTxn.wait();
             await stopImpersonatingAccount(admin);
         } else {
             throw new Error("Cannot impersonate AAVE ACL Admin. No permissions");
         }
 
+        const updatedWbtcPrice = await oracleContract.getAssetPrice(WBTC_ADDRESS);
+        console.log(updatedWbtcPrice);
 
 
 
