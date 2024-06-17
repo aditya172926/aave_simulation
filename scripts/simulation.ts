@@ -130,9 +130,9 @@ const getUsers = async (poolContract: any) => {
         const userAccountData = await poolContract.getUserAccountData(user);
         const healthFactor = userAccountData.healthFactor;
         userAccounts[user] = {
-            healthFactor: healthFactor,
-            totalCollateralBase: userAccountData.totalCollateralBase,
-            totalDebtBase: userAccountData.totalDebtBase,
+            healthFactor: healthFactor.toString(),
+            totalCollateralBase: userAccountData.totalCollateralBase.toString(),
+            totalDebtBase: userAccountData.totalDebtBase.toString(),
             liquidation: healthFactor < 1e18 ? true : false
         }
     }
