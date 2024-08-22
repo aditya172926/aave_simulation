@@ -2,7 +2,7 @@ import { impersonateAccount, stopImpersonatingAccount } from "@nomicfoundation/h
 import axios from 'axios';
 import { ethers } from "hardhat";
 import {
-    AAVE_SUBGRAPH_URL,
+    AAVE_SUBGRAPH_BASEURL,
     POOL_ADDRESS_PROVIDER_ADDRESS,
     WBTC_ADDRESS,
     uiPoolDataProviderV3Address
@@ -56,7 +56,7 @@ const deployNewPriceFeedContract = async (
     }
 }
 
-const runSimulation = async (runTest: boolean = false) => {
+const runSimulation = async (aave_subgraph_url: string, runTest: boolean = false) => {
     try {
         const [signer] = await ethers.getSigners();
         console.log("Current block number ", await signer.provider.getBlockNumber());
@@ -96,7 +96,7 @@ const runSimulation = async (runTest: boolean = false) => {
             const updatedWbtcPrice = await oracleContract.getAssetPrice(WBTC_ADDRESS);
             console.log("New Price of WBTC", updatedWbtcPrice);
         }
-        const users = await getUsers(poolContract);
+        const users = await getUsers(poolContract, aave_subgraph_url);
         // await checkUserReservePool(
         //     signer, 
         //     uiPoolDataProviderV3Address, 
@@ -109,15 +109,15 @@ const runSimulation = async (runTest: boolean = false) => {
     }
 }
 
-const getUsers = async (poolContract: any) => {
-    const res = await axios.post(AAVE_SUBGRAPH_URL, {
+const getUsers = async (poolContract: any, aave_subgraph_url: string) => {
+    const res = await axios.post(aave_subgraph_url, {
         query: reserveQuery(),
         variables: { underlyingAssetAddress: WBTC_ADDRESS }
     });
     console.log("Reserve id = ", res.data.data.reserves[0].id);
     const reserveId: string = res.data.data.reserves[0].id;
 
-    const res2 = await axios.post(AAVE_SUBGRAPH_URL, {
+    const res2 = await axios.post(aave_subgraph_url, {
         query: borrowQuery(),
         variables: {
             reserveId: reserveId,
@@ -158,11 +158,17 @@ const checkUserReservePool = async (
 
 const main = async () => {
     console.clear();
+    if (!vars.has('GRAPH_API_KEY')) {
+        console.error('No GRAPH_API_KEY environment variable found.')
+        return;
+    }
+    const graph_api_key = vars.get('GRAPH_API_KEY');
     console.log("Running Simulation at actual price of WBTC\n");
-    const userDetails = await runSimulation();
+    const aave_subgraph_url = `${AAVE_SUBGRAPH_BASEURL}/${graph_api_key}/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g`
+    const userDetails = await runSimulation(aave_subgraph_url);
     console.log("\n----------------------------------------------------------------\n");
     console.log("Running Simulation at manipulated price of WBTC\n");
-    const userDetailsAfterTest = await runSimulation(true);
+    const userDetailsAfterTest = await runSimulation(aave_subgraph_url, true);
 
     const data = {
         beforeTest: userDetails,
